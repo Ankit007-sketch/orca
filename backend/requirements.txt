@@ -1,0 +1,16 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+httpx>=0.27.0
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+python-multipart>=0.0.9
+
+# Needed to activate the real marine_agent / ocean_agent integrations
+# (see backend/services/agent_dispatcher.py). Optional: if these aren't
+# installed, the backend still runs fine and falls back to its simulator.
+requests>=2.31
+xarray>=2023.1
+numpy>=1.24
+scipy>=1.10

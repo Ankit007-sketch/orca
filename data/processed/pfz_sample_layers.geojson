@@ -1,0 +1,93 @@
+{
+  "type": "FeatureCollection",
+  "name": "INCOIS_ISRO_PFZ_Layers_Sample",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "PFZ-KA-001",
+        "zone_name": "Mangalore Offshore High-Yield PFZ",
+        "chlorophyll_mg_m3": 2.1,
+        "sst_celsius": 28.4,
+        "valid_until": "2026-09-02T18:00:00Z",
+        "confidence_score": 0.89,
+        "depth_m": 35,
+        "direction_bearing_deg": 265,
+        "distance_km": 18.5,
+        "fish_species": ["Mackerel", "Sardine", "Seer Fish"],
+        "advisory": "High concentration of chlorophyll-a coupled with SST thermal gradient front. Favorable for pelagic schools."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [74.65, 12.85],
+            [74.75, 12.88],
+            [74.78, 12.96],
+            [74.68, 12.98],
+            [74.60, 12.92],
+            [74.65, 12.85]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "PFZ-KL-002",
+        "zone_name": "Kochi Southwest Coastal Front",
+        "chlorophyll_mg_m3": 2.8,
+        "sst_celsius": 27.9,
+        "valid_until": "2026-09-02T18:00:00Z",
+        "confidence_score": 0.93,
+        "depth_m": 42,
+        "direction_bearing_deg": 235,
+        "distance_km": 24.0,
+        "fish_species": ["Oil Sardine", "Anchovy", "Tuna"],
+        "advisory": "Strong upwelling zone off Kochi coast. High chlorophyll concentration."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [75.95, 9.80],
+            [76.08, 9.85],
+            [76.12, 9.95],
+            [76.00, 9.98],
+            [75.90, 9.88],
+            [75.95, 9.80]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "PFZ-TN-003",
+        "zone_name": "Chennai East Pelagic Front",
+        "chlorophyll_mg_m3": 1.7,
+        "sst_celsius": 29.1,
+        "valid_until": "2026-09-02T18:00:00Z",
+        "confidence_score": 0.85,
+        "depth_m": 50,
+        "direction_bearing_deg": 90,
+        "distance_km": 22.0,
+        "fish_species": ["Carangids", "Tuna", "Ribbonfish"],
+        "advisory": "Moderate chlorophyll zone with thermal front matching INCOIS OSF forecast."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [80.45, 13.00],
+            [80.58, 13.05],
+            [80.60, 13.18],
+            [80.48, 13.15],
+            [80.45, 13.00]
+          ]
+        ]
+      }
+    }
+  ]
+}

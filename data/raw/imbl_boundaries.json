@@ -1,0 +1,38 @@
+{
+  "imbl_lines": [
+    {
+      "name": "India - Sri Lanka IMBL (Palk Bay & Gulf of Mannar)",
+      "country_adj": "Sri Lanka",
+      "warning_distance_km": 15.0,
+      "coordinates": [
+        [79.8333, 10.0833],
+        [79.5333, 9.7500],
+        [79.3333, 9.3667],
+        [79.1667, 9.1000],
+        [78.9500, 8.8500],
+        [78.6333, 8.4000]
+      ]
+    },
+    {
+      "name": "India - Pakistan Maritime Boundary (Sir Creek / Gujarat Coast)",
+      "country_adj": "Pakistan",
+      "warning_distance_km": 25.0,
+      "coordinates": [
+        [68.1667, 23.6333],
+        [67.8333, 23.3333],
+        [67.5000, 23.0000],
+        [67.0000, 22.5000]
+      ]
+    },
+    {
+      "name": "India - Myanmar Maritime Boundary (Coco Islands / North Andaman)",
+      "country_adj": "Myanmar",
+      "warning_distance_km": 20.0,
+      "coordinates": [
+        [93.4167, 13.9167],
+        [93.8333, 14.1667],
+        [94.3333, 14.5000]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "ports": [
+    {"name": "Mangalore", "state": "Karnataka", "latitude": 12.9141, "longitude": 74.8560, "coast": "West Coast", "sea": "Arabian Sea"},
+    {"name": "Kochi", "state": "Kerala", "latitude": 9.9312, "longitude": 76.2673, "coast": "West Coast", "sea": "Arabian Sea"},
+    {"name": "Mumbai", "state": "Maharashtra", "latitude": 18.9438, "longitude": 72.8387, "coast": "West Coast", "sea": "Arabian Sea"},
+    {"name": "Goa (Mormugao)", "state": "Goa", "latitude": 15.4124, "longitude": 73.8052, "coast": "West Coast", "sea": "Arabian Sea"},
+    {"name": "Porbandar", "state": "Gujarat", "latitude": 21.6422, "longitude": 69.6093, "coast": "West Coast", "sea": "Arabian Sea"},
+    {"name": "Chennai", "state": "Tamil Nadu", "latitude": 13.0827, "longitude": 80.2707, "coast": "East Coast", "sea": "Bay of Bengal"},
+    {"name": "Visakhapatnam", "state": "Andhra Pradesh", "latitude": 17.6868, "longitude": 83.2185, "coast": "East Coast", "sea": "Bay of Bengal"},
+    {"name": "Paradip", "state": "Odisha", "latitude": 20.2644, "longitude": 86.6083, "coast": "East Coast", "sea": "Bay of Bengal"},
+    {"name": "Kolkata / Haldia", "state": "West Bengal", "latitude": 22.0253, "longitude": 88.0583, "coast": "East Coast", "sea": "Bay of Bengal"},
+    {"name": "Tuticorin (V.O.C.)", "state": "Tamil Nadu", "latitude": 8.7642, "longitude": 78.1348, "coast": "East Coast", "sea": "Gulf of Mannar"},
+    {"name": "Port Blair", "state": "Andaman & Nicobar", "latitude": 11.6234, "longitude": 92.7265, "coast": "Island", "sea": "Andaman Sea"},
+    {"name": "Kavaratti", "state": "Lakshadweep", "latitude": 10.5669, "longitude": 72.6420, "coast": "Island", "sea": "Arabian Sea"}
+  ]
+}

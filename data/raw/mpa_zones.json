@@ -1,0 +1,44 @@
+{
+  "marine_protected_areas": [
+    {
+      "name": "Gulf of Mannar Marine National Park",
+      "state": "Tamil Nadu",
+      "category": "National Park & Biosphere Reserve",
+      "restrictions": "Strict No-Fishing Zone / Coral Reef Protection",
+      "bbox": [78.10, 8.75, 79.25, 9.30],
+      "center": [9.05, 78.70]
+    },
+    {
+      "name": "Gahirmatha Marine Sanctuary",
+      "state": "Odisha",
+      "category": "Marine Sanctuary (Olive Ridley Turtle Sanctuary)",
+      "restrictions": "Prohibited mechanized trawling within 20 km from coast (Nov to May)",
+      "bbox": [86.70, 20.30, 87.20, 20.80],
+      "center": [20.55, 86.95]
+    },
+    {
+      "name": "Malvan Marine Sanctuary",
+      "state": "Maharashtra",
+      "category": "Marine Sanctuary (Sindhudurg Coastal Ecosystem)",
+      "restrictions": "Trawling strictly prohibited within core zone",
+      "bbox": [73.40, 15.95, 73.55, 16.10],
+      "center": [16.02, 73.48]
+    },
+    {
+      "name": "Gulf of Kutch Marine National Park",
+      "state": "Gujarat",
+      "category": "Marine National Park (Mangroves & Corals)",
+      "restrictions": "Restricted commercial fishing in designated zones",
+      "bbox": [69.20, 22.35, 70.30, 22.75],
+      "center": [22.50, 69.80]
+    },
+    {
+      "name": "Mahatma Gandhi Marine National Park (Wandoor)",
+      "state": "Andaman & Nicobar",
+      "category": "Marine National Park",
+      "restrictions": "No extractive fishing allowed",
+      "bbox": [92.50, 11.50, 92.65, 11.65],
+      "center": [11.58, 92.58]
+    }
+  ]
+}

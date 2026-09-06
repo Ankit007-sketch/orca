@@ -1,0 +1,58 @@
+:root {
+  --ocean-deep: #0c4a6e;
+  --ocean-mid: #0369a1;
+  --ocean-light: #0ea5e9;
+  --ocean-pale: #e0f2fe;
+  --ocean-bg: #f0f9ff;
+  --teal: #0d9488;
+  --text: #475569;
+  --text-h: #0f172a;
+  --text-muted: #64748b;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --heading: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font: 16px/1.6 var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--heading);
+  color: var(--text-h);
+  margin: 0;
+  font-weight: 600;
+}
+
+p {
+  margin: 0;
+}
+
+button, input, textarea {
+  font-family: inherit;
+}
