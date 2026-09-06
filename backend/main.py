@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from backend.api.routes import api_router
 from backend.api.session import session_router
-from backend.middleware import ProcessTimeAndLoggingMiddleware, setup_cors_origins
+from backend.api.middleware import ProcessTimeAndLoggingMiddleware, setup_cors_origins
 
 
 @asynccontextmanager
