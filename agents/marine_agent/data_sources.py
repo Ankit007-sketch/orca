@@ -1,222 +1,316 @@
 """
-Data source clients for the Marine Agent.
+Real Copernicus Marine data sources for the Marine Agent.
 
-Wraps the three sources given for this project:
+This module uses the official Copernicus Marine Toolbox Python API.
 
-1. INCOIS ERDDAP  (https://erddap.incois.gov.in/erddap/index.html)
-   A proper REST API for scientific ocean data (SST, waves, currents, etc).
-   This is the PRIMARY source -- it's the only one of the three that's a
-   real, queryable data API rather than a dashboard page.
+The Copernicus Marine credentials are NOT stored in this file.
+The Toolbox automatically uses the credentials configured on the
+machine running the application.
 
-2. INCOIS Ocean State Forecast page (osfforecast.jsp)
-   A rendered HTML dashboard, not an API. We treat it as a "reference link"
-   for now (surfaced in `sources`) rather than scraping it, since scraping
-   government dashboard HTML is brittle and likely to break right before a
-   demo. Swap in a scraper later if a teammate wants richer forecast text.
+Real parameters:
+- sea_surface_temperature -> Copernicus temperature forecast
+- salinity               -> Copernicus salinity forecast
+- ocean_current          -> Copernicus surface currents
+- wave_height            -> Copernicus wave forecast
+- chlorophyll             -> Copernicus biogeochemistry forecast
 
-3. IMD public API (api.imd.gov.in)
-   Weather data (wind, rain) that complements ocean parameters. Endpoint
-   shape isn't finalized/verified here -- wrapped so it fails soft.
-
-Design choice: every fetch function degrades gracefully. If the network
-call fails or INCOIS/IMD are unreachable (common for gov't APIs, and this
-sandbox itself has no outbound internet), we return a clearly-flagged mock
-reading instead of crashing, so the rest of the pipeline / demo still works.
-Set MARINE_AGENT_ALLOW_MOCK=False to disable this and force real errors.
+If a real request fails, the function returns an error reading rather
+than inventing a fake value.
 """
 
 from __future__ import annotations
 
-import os
-import random
 import logging
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+import math
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 
-import requests
+import copernicusmarine
 
 logger = logging.getLogger("marine_agent.data_sources")
 
-ALLOW_MOCK_FALLBACK = os.environ.get("MARINE_AGENT_ALLOW_MOCK", "true").lower() != "false"
-REQUEST_TIMEOUT_SECONDS = 8
 
-INCOIS_ERDDAP_BASE = "https://erddap.incois.gov.in/erddap"
-INCOIS_OSF_FORECAST_URL = "https://incois.gov.in/oceanservices/osfforecast.jsp"
-IMD_API_BASE = "https://api.imd.gov.in/public/index.php"
+# ---------------------------------------------------------------------------
+# Current Copernicus Marine datasets
+# ---------------------------------------------------------------------------
 
+DATASETS = {
+    "sea_surface_temperature": {
+        "dataset_id": "cmems_mod_glo_phy-thetao_anfc_0.083deg_PT6H-i",
+        "variable": "thetao",
+        "unit": "°C",
+        "depth": 0.5,
+        "source": "Copernicus Marine - Global Ocean Physics",
+    },
+
+    "salinity": {
+        "dataset_id": "cmems_mod_glo_phy-so_anfc_0.083deg_PT6H-i",
+        "variable": "so",
+        "unit": "PSU",
+        "depth": 0.5,
+        "source": "Copernicus Marine - Global Ocean Physics",
+    },
+
+    "ocean_current": {
+        "dataset_id": "cmems_mod_glo_phy-cur_anfc_0.083deg_PT6H-i",
+        "variable": "uo",
+        "unit": "m/s",
+        "depth": 0.5,
+        "source": "Copernicus Marine - Global Ocean Physics",
+    },
+
+    "wave_height": {
+        "dataset_id": "cmems_mod_glo_wav_anfc_0.083deg_PT3H-i",
+        "variable": "VHM0",
+        "unit": "m",
+        "depth": None,
+        "source": "Copernicus Marine - Global Ocean Waves",
+    },
+
+    "chlorophyll": {
+        "dataset_id": "cmems_mod_glo_bgc-bio_anfc_0.25deg_P1D-m",
+        "variable": "chl",
+        "unit": "mg/m^3",
+        "depth": 0.5,
+        "source": "Copernicus Marine - Global Ocean Biogeochemistry",
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Utility
+# ---------------------------------------------------------------------------
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _is_valid_number(value: Any) -> bool:
+    try:
+        value = float(value)
+        return math.isfinite(value)
+    except (TypeError, ValueError):
+        return False
+
+
 # ---------------------------------------------------------------------------
-# INCOIS ERDDAP client
+# Copernicus Marine client
+# ---------------------------------------------------------------------------
+
+class CopernicusMarineClient:
+    """
+    Client used by MarineAgent to retrieve real ocean data.
+
+    Authentication is handled by the Copernicus Marine Toolbox.
+    It will automatically use the credentials configured through
+    copernicusmarine login on the machine where the application runs.
+    """
+
+    def __init__(self):
+        pass
+
+    def get_parameter(
+        self,
+        parameter: str,
+        lat: float,
+        lon: float,
+    ) -> Dict[str, Any]:
+        """
+        Retrieve the latest available Copernicus Marine value
+        near the requested latitude/longitude.
+        """
+
+        config = DATASETS.get(parameter)
+
+        if config is None:
+            return {
+                "value": None,
+                "unit": "",
+                "source": "Copernicus Marine",
+                "observed_at": _utc_now_iso(),
+                "status": "error",
+                "note": f"No Copernicus dataset configured for '{parameter}'.",
+            }
+
+        dataset_id = config["dataset_id"]
+        variable = config["variable"]
+        depth = config["depth"]
+
+        try:
+            # Small time window around now.
+            #
+            # This allows Copernicus to select the latest available
+            # observation/forecast rather than using old fixed-year data.
+            now = datetime.now(timezone.utc)
+            start = now - timedelta(days=2)
+            end = now + timedelta(days=2)
+
+            kwargs = {
+                "dataset_id": dataset_id,
+                "variables": [variable],
+                "minimum_longitude": lon,
+                "maximum_longitude": lon,
+                "minimum_latitude": lat,
+                "maximum_latitude": lat,
+                "start_datetime": start,
+                "end_datetime": end,
+                "coordinates_selection_method": "nearest",
+                
+            }
+
+            if depth is not None:
+                kwargs["minimum_depth"] = depth
+                kwargs["maximum_depth"] = depth
+
+            dataset = copernicusmarine.open_dataset(**kwargs)
+
+            if variable not in dataset:
+                raise ValueError(
+                    f"Variable '{variable}' was not returned by dataset "
+                    f"'{dataset_id}'."
+                )
+
+            data_array = dataset[variable]
+
+            # Select nearest spatial point and latest available time.
+            if "latitude" in data_array.dims:
+                data_array = data_array.sel(
+                    latitude=lat,
+                    method="nearest",
+                )
+
+            if "longitude" in data_array.dims:
+                data_array = data_array.sel(
+                    longitude=lon,
+                    method="nearest",
+                )
+
+            if "depth" in data_array.dims:
+                data_array = data_array.sel(
+                    depth=depth,
+                    method="nearest",
+                )
+
+            if "time" in data_array.dims:
+                data_array = data_array.sel(
+                    time=data_array.time.max()
+                )
+
+            value = data_array.values
+
+            # Convert numpy scalar / 0-dimensional array to float.
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                value = float(value.item())
+
+            if not _is_valid_number(value):
+                raise ValueError(
+                    f"Copernicus returned an invalid value: {value}"
+                )
+
+            observed_at = _utc_now_iso()
+
+            if "time" in data_array.coords:
+                try:
+                    observed_at = str(data_array.coords["time"].values)
+                except Exception:
+                    pass
+
+            return {
+                "value": round(value, 4),
+                "unit": config["unit"],
+                "source": (
+                    f"{config['source']} "
+                    f"({dataset_id})"
+                ),
+                "observed_at": observed_at,
+                "status": "ok",
+            }
+
+        except Exception as exc:
+            logger.exception(
+                "Copernicus Marine request failed for %s: %s",
+                parameter,
+                exc,
+            )
+
+            return {
+                "value": None,
+                "unit": config["unit"],
+                "source": f"Copernicus Marine ({dataset_id})",
+                "observed_at": _utc_now_iso(),
+                "status": "error",
+                "note": str(exc),
+            }
+
+
+# ---------------------------------------------------------------------------
+# Backwards-compatible class name
 # ---------------------------------------------------------------------------
 
 class INCOISERDDAPClient:
     """
-    Thin client around INCOIS's ERDDAP server.
+    Compatibility wrapper.
 
-    ERDDAP query pattern (tabledap, for point/station data):
-        {base}/tabledap/{dataset_id}.json?{vars}&{constraints}
-
-    ERDDAP query pattern (griddap, for gridded satellite data e.g. SST):
-        {base}/griddap/{dataset_id}.json?{var}[(time)][(lat)][(lon)]
-
-    Known example dataset (verified to exist on INCOIS's ERDDAP):
-        incois_tmi_3day_datasets   -- TMI 3-day gridded SST-related data
-
-    NOTE for teammates: the exact dataset IDs you need (waves, salinity,
-    chlorophyll, currents) should be confirmed by browsing:
-        https://erddap.incois.gov.in/erddap/info/index.html
-    and dropped into DATASET_IDS below. This client works for any valid
-    dataset id/variable combo once you do.
+    Existing MarineAgent code already expects INCOISERDDAPClient,
+    so we keep that class name while internally using the official
+    Copernicus Marine Toolbox.
     """
 
-    # Fill in / adjust after browsing the ERDDAP dataset catalog.
-    DATASET_IDS = {
-        "sea_surface_temperature": "incois_tmi_3day_datasets",
-    }
+    def __init__(self):
+        self.client = CopernicusMarineClient()
 
-    def __init__(self, base_url: str = INCOIS_ERDDAP_BASE, session: Optional[requests.Session] = None):
-        self.base_url = base_url.rstrip("/")
-        self.session = session or requests.Session()
-
-    def fetch_griddap_json(self, dataset_id: str, query: str) -> Dict[str, Any]:
-        """
-        Fetch a griddap dataset as JSON.
-        `query` is the ERDDAP query string, e.g.:
-            "sst[(2024-01-01T00:00:00Z)][(10):(15)][(75):(80)]"
-        """
-        url = f"{self.base_url}/griddap/{dataset_id}.json?{query}"
-        resp = self.session.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
-        resp.raise_for_status()
-        return resp.json()
-
-    def fetch_tabledap_json(self, dataset_id: str, variables: str, constraints: str = "") -> Dict[str, Any]:
-        """
-        Fetch a tabledap (tabular/station) dataset as JSON.
-        Example: variables="time,latitude,longitude,sea_surface_temperature"
-        """
-        url = f"{self.base_url}/tabledap/{dataset_id}.json?{variables}{constraints}"
-        resp = self.session.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
-        resp.raise_for_status()
-        return resp.json()
-
-    def get_parameter(self, parameter: str, lat: float, lon: float) -> Dict[str, Any]:
-        """
-        High-level helper: fetch the nearest/latest value for a supported
-        parameter near (lat, lon). Falls back to a mocked reading on any
-        failure (network, missing dataset id, unexpected response shape)
-        so the agent stays demo-safe.
-        """
-        dataset_id = self.DATASET_IDS.get(parameter)
-        if not dataset_id:
-            return _mock_reading(parameter, reason=f"No ERDDAP dataset id configured for '{parameter}' yet.")
-
-        try:
-            # Griddap point query: value at nearest time/lat/lon.
-            query = f"sst[(last)][({lat})][({lon})]"
-            data = self.fetch_griddap_json(dataset_id, query)
-            rows = data.get("table", {}).get("rows", [])
-            if not rows:
-                raise ValueError("Empty response from ERDDAP.")
-            row = rows[0]
-            col_names = data["table"]["columnNames"]
-            value = row[col_names.index("sst")] if "sst" in col_names else row[-1]
-            return {
-                "value": float(value),
-                "unit": "°C",
-                "source": f"INCOIS-ERDDAP:{dataset_id}",
-                "observed_at": row[col_names.index("time")] if "time" in col_names else _utc_now_iso(),
-                "status": "ok",
-            }
-        except Exception as exc:  # noqa: BLE001 -- intentionally broad: many failure modes, all handled the same
-            logger.warning("INCOIS ERDDAP fetch failed for %s: %s", parameter, exc)
-            return _mock_reading(parameter, reason=f"ERDDAP request failed: {exc}")
+    def get_parameter(
+        self,
+        parameter: str,
+        lat: float,
+        lon: float,
+    ) -> Dict[str, Any]:
+        return self.client.get_parameter(parameter, lat, lon)
 
 
 # ---------------------------------------------------------------------------
-# INCOIS Ocean State Forecast (reference link, not scraped)
+# INCOIS Ocean State Forecast reference
 # ---------------------------------------------------------------------------
 
 def get_osf_forecast_reference() -> Dict[str, str]:
-    """
-    The OSF forecast page is a rendered dashboard rather than an API, so we
-    surface it as a citable reference rather than scraping fragile HTML.
-    """
     return {
         "name": "INCOIS Ocean State Forecast",
-        "url": INCOIS_OSF_FORECAST_URL,
-        "note": "Dashboard page (wave height / current / SST forecasts). "
-                "Not machine-readable; link included for human follow-up.",
+        "url": "https://incois.gov.in/oceanservices/osfforecast.jsp",
+        "note": (
+            "INCOIS Ocean State Forecast reference. "
+            "Primary machine-readable marine data is obtained "
+            "through Copernicus Marine."
+        ),
     }
 
 
 # ---------------------------------------------------------------------------
-# IMD client (weather, complements ocean data)
+# IMD compatibility client
 # ---------------------------------------------------------------------------
 
 class IMDClient:
     """
-    Wrapper around IMD's public API. Endpoint shape should be confirmed
-    against current IMD docs -- this fails soft (mocked reading) if the
-    call doesn't succeed, so it never blocks the rest of the agent.
+    Kept for compatibility with the existing MarineAgent.
+
+    Wind data will be handled separately by the Weather Agent.
+    The Marine Agent therefore does not depend on IMD for its
+    core marine parameters.
     """
 
-    def __init__(self, base_url: str = IMD_API_BASE, session: Optional[requests.Session] = None):
-        self.base_url = base_url
-        self.session = session or requests.Session()
-
-    def get_wind_speed(self, lat: float, lon: float) -> Dict[str, Any]:
-        try:
-            resp = self.session.get(
-                self.base_url,
-                params={"lat": lat, "lon": lon},
-                timeout=REQUEST_TIMEOUT_SECONDS,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            # Response shape not yet confirmed against live IMD docs --
-            # adjust the key names below once verified.
-            value = data.get("wind_speed") or data.get("windSpeed")
-            if value is None:
-                raise ValueError("Unexpected IMD response shape.")
-            return {
-                "value": float(value),
-                "unit": "km/h",
-                "source": "IMD-API",
-                "observed_at": data.get("time", _utc_now_iso()),
-                "status": "ok",
-            }
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("IMD fetch failed: %s", exc)
-            return _mock_reading("wind_speed", reason=f"IMD request failed: {exc}")
-
-
-# ---------------------------------------------------------------------------
-# Shared mock fallback
-# ---------------------------------------------------------------------------
-
-_MOCK_RANGES = {
-    "sea_surface_temperature": (24.0, 30.0, "°C"),
-    "wave_height": (0.5, 2.5, "m"),
-    "salinity": (33.0, 36.0, "PSU"),
-    "chlorophyll": (0.1, 2.0, "mg/m^3"),
-    "wind_speed": (5.0, 25.0, "km/h"),
-    "ocean_current": (0.1, 1.2, "m/s"),
-}
-
-
-def _mock_reading(parameter: str, reason: str) -> Dict[str, Any]:
-    if not ALLOW_MOCK_FALLBACK:
-        raise RuntimeError(reason)
-    lo, hi, unit = _MOCK_RANGES.get(parameter, (0.0, 1.0, ""))
-    return {
-        "value": round(random.uniform(lo, hi), 2),
-        "unit": unit,
-        "source": "mock-fallback",
-        "observed_at": _utc_now_iso(),
-        "status": "mocked",
-        "note": reason,
-    }
+    def get_wind_speed(
+        self,
+        lat: float,
+        lon: float,
+    ) -> Dict[str, Any]:
+        return {
+            "value": None,
+            "unit": "km/h",
+            "source": "Weather Agent",
+            "observed_at": _utc_now_iso(),
+            "status": "not_available",
+            "note": (
+                "Wind speed is handled by the Weather Agent."
+            ),
+        }
