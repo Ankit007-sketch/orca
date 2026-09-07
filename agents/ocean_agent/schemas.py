@@ -1,9 +1,5 @@
 """
-Structured input/output contracts for the Ocean/Chlorophyll Agent.
-
-Uses stdlib dataclasses so other ORCA agents can import this module without
-an extra schema dependency. If the team later standardizes on Pydantic, this
-file can be replaced without changing the public agent entrypoint.
+Structured input/output contracts for the Ocean Agent.
 """
 
 from __future__ import annotations
@@ -12,29 +8,26 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-SUPPORTED_PARAMETERS = ["chlorophyll"]
-
+SUPPORTED_PARAMETERS = [
+    "chlorophyll",
+    "wave_height",
+    "wave_direction",
+    "ocean_current_velocity",
+    "ocean_current_direction",
+    "ocean_temperature",
+    "salinity"
+]
 
 @dataclass
 class OceanAgentInput:
     """What the Coordinator Agent (or a user query) sends to the Ocean Agent."""
 
-    # Either coordinates or a known free-text location. Coordinates take priority.
     lat: Optional[float] = None
     lon: Optional[float] = None
     location_name: Optional[str] = None
-
-    # Chlorophyll is the current scope of this specialist agent.
     parameters: List[str] = field(default_factory=lambda: list(SUPPORTED_PARAMETERS))
-
-    # Optional ISO date/time. If omitted, the latest available observation is used.
     date: Optional[str] = None
-
-    # Optional search window. The first implementation uses nearest-grid-cell
-    # retrieval; this field is retained for future regional aggregation.
     radius_km: Optional[float] = None
-
-    # Free-text query for logging / future NLU use.
     raw_query: Optional[str] = None
 
     def validate(self) -> Optional[str]:
@@ -53,10 +46,9 @@ class OceanAgentInput:
                 return f"date='{self.date}' is not a valid ISO date/time."
         return None
 
-
 @dataclass
-class ChlorophyllReading:
-    """A chlorophyll observation/estimate returned by the OCM dataset."""
+class OceanReading:
+    """An ocean observation/estimate returned by a data source."""
 
     name: str
     value: Optional[float]
@@ -76,7 +68,7 @@ class OceanAgentOutput:
     status: str
     location: Dict[str, Any]
     generated_at: str
-    readings: List[ChlorophyllReading]
+    readings: List[OceanReading]
     ocean_summary: str
     insights: List[str] = field(default_factory=list)
     sources: List[str] = field(default_factory=list)

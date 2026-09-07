@@ -15,6 +15,6 @@ Public entrypoint:
 """
 
 from .agent import OceanAgent
-from .schemas import OceanAgentInput, OceanAgentOutput, ChlorophyllReading
+from .schemas import OceanAgentInput, OceanAgentOutput, OceanReading
 
-__all__ = ["OceanAgent", "OceanAgentInput", "OceanAgentOutput", "ChlorophyllReading"]
+__all__ = ["OceanAgent", "OceanAgentInput", "OceanAgentOutput", "OceanReading"]

@@ -29,13 +29,14 @@ from __future__ import annotations
 import logging
 import os
 import random
+import requests
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger("ocean_agent.data_sources")
 
-ALLOW_MOCK_FALLBACK = os.environ.get("OCEAN_AGENT_ALLOW_MOCK", "true").lower() != "false"
+ALLOW_MOCK_FALLBACK = os.environ.get("OCEAN_AGENT_ALLOW_MOCK", "false").lower() != "false"
 DEFAULT_DATASET_PATH = os.environ.get("OCEAN_AGENT_DATASET_PATH")
 
 # Aliases allow the first version to work with common scientific file naming
@@ -117,7 +118,7 @@ class IRSP4OCMClient:
                 ds.close()
         except Exception as exc:  # intentionally broad: missing file/schema/query all fail soft
             logger.warning("IRS-P4 OCM chlorophyll fetch failed: %s", exc)
-            return _mock_reading(reason=f"IRS-P4 OCM request failed: {exc}")
+            return _unavailable_reading(reason=f"IRS-P4 OCM request failed: {exc}")
 
     def _open_dataset(self):
         if not self.dataset_path:
@@ -174,16 +175,48 @@ class IRSP4OCMClient:
             return None
 
 
-def _mock_reading(reason: str) -> Dict[str, Any]:
-    if not ALLOW_MOCK_FALLBACK:
-        raise RuntimeError(reason)
+class OpenMeteoMarineClient:
+    """Client for Open-Meteo Marine API."""
+
+    def __init__(self):
+        self.base_url = "https://marine-api.open-meteo.com/v1/marine"
+
+    def get_marine_data(self, lat: float, lon: float) -> Dict[str, Any]:
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "current": "wave_height,wave_direction,ocean_current_velocity,ocean_current_direction",
+            "timezone": "auto"
+        }
+        try:
+            response = requests.get(self.base_url, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.warning("Open-Meteo marine fetch failed: %s", e)
+            return {"error": str(e)}
+
+
+def _unavailable_reading(reason: str) -> Dict[str, Any]:
+    if ALLOW_MOCK_FALLBACK:
+        return {
+            "value": round(random.uniform(0.1, 2.0), 3),
+            "unit": "mg/m^3",
+            "source": "mock-fallback",
+            "observed_at": _utc_now_iso(),
+            "status": "mocked",
+            "note": reason,
+            "grid_lat": None,
+            "grid_lon": None,
+        }
     return {
-        "value": round(random.uniform(0.1, 2.0), 3),
+        "value": None,
         "unit": "mg/m^3",
-        "source": "mock-fallback",
-        "observed_at": _utc_now_iso(),
-        "status": "mocked",
+        "source": "unknown",
+        "observed_at": None,
+        "status": "unavailable",
         "note": reason,
         "grid_lat": None,
         "grid_lon": None,
     }
+

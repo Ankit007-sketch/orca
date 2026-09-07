@@ -4,7 +4,7 @@ OceanAgent: core logic.
 Responsibility recap (from the team task):
   - Work with IRS P4 OCM-Chlorophyll data              -> data_sources.py
   - Understand time/latitude/longitude/chlorophyll    -> schemas.py + data source schema detection
-  - Retrieve/process chlorophyll information          -> this file
+  - Retrieve/process ocean information                -> this file
   - Build reasoning around ocean conditions            -> _build_insights()
   - Return structured Coordinator-compatible results  -> OceanAgentOutput.to_dict()
   - Document preprocessing and add tests               -> README.md + tests/
@@ -15,18 +15,16 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
-from .data_sources import IRSP4OCMClient
+from .data_sources import IRSP4OCMClient, OpenMeteoMarineClient
 from .schemas import (
     SUPPORTED_PARAMETERS,
-    ChlorophyllReading,
+    OceanReading,
     OceanAgentInput,
     OceanAgentOutput,
 )
 
 logger = logging.getLogger("ocean_agent.agent")
 
-# Only used for demo-location convenience. A production ORCA system should use
-# a shared geocoder/GIS service rather than duplicating location knowledge.
 KNOWN_LOCATIONS = {
     "chennai coast": (13.08, 80.27),
     "mumbai coast": (18.96, 72.82),
@@ -39,10 +37,15 @@ KNOWN_LOCATIONS = {
 
 
 class OceanAgent:
-    """The Ocean/Chlorophyll specialist agent. One instance is reusable."""
+    """The Ocean specialist agent. One instance is reusable."""
 
-    def __init__(self, ocm_client: Optional[IRSP4OCMClient] = None):
+    def __init__(
+        self,
+        ocm_client: Optional[IRSP4OCMClient] = None,
+        marine_client: Optional[OpenMeteoMarineClient] = None
+    ):
         self.ocm = ocm_client or IRSP4OCMClient()
+        self.marine_client = marine_client or OpenMeteoMarineClient()
 
     def analyze(self, agent_input: OceanAgentInput) -> OceanAgentOutput:
         """Main entrypoint. Always returns an OceanAgentOutput (never raises)."""
@@ -60,21 +63,76 @@ class OceanAgent:
         lat, lon, resolved_name, errors = self._resolve_location(agent_input)
         parameters = [p for p in agent_input.parameters if p in SUPPORTED_PARAMETERS] or SUPPORTED_PARAMETERS
 
-        readings: List[ChlorophyllReading] = []
+        readings: List[OceanReading] = []
         sources = set()
+        
+        # Fetch marine data in bulk if any marine params requested
+        marine_params = ["wave_height", "wave_direction", "ocean_current_velocity", "ocean_current_direction"]
+        needs_marine = any(p in parameters for p in marine_params)
+        marine_data = {}
+        if needs_marine:
+            marine_data = self.marine_client.get_marine_data(lat, lon)
+            if "error" in marine_data:
+                errors.append(marine_data["error"])
 
         for parameter in parameters:
             if parameter == "chlorophyll":
                 reading_dict = self.ocm.get_chlorophyll(lat, lon, agent_input.date)
-                reading = ChlorophyllReading(name=parameter, **reading_dict)
+                reading = OceanReading(name=parameter, **reading_dict)
                 readings.append(reading)
                 sources.add(reading.source)
+            elif parameter in marine_params:
+                if "error" not in marine_data and "current" in marine_data:
+                    current = marine_data["current"]
+                    units = marine_data.get("current_units", {})
+                    value = current.get(parameter)
+                    unit = units.get(parameter, "")
+                    observed_at = current.get("time")
+                    
+                    if value is not None:
+                        readings.append(OceanReading(
+                            name=parameter,
+                            value=value,
+                            unit=unit,
+                            source="Open-Meteo Marine",
+                            observed_at=observed_at,
+                            status="ok"
+                        ))
+                        sources.add("Open-Meteo Marine")
+                    else:
+                        readings.append(OceanReading(
+                            name=parameter,
+                            value=None,
+                            unit="",
+                            source="Open-Meteo Marine",
+                            observed_at=None,
+                            status="unavailable"
+                        ))
+                else:
+                    readings.append(OceanReading(
+                        name=parameter,
+                        value=None,
+                        unit="",
+                        source="Open-Meteo Marine",
+                        observed_at=None,
+                        status="error"
+                    ))
+            elif parameter in ["ocean_temperature", "salinity"]:
+                readings.append(OceanReading(
+                    name=parameter,
+                    value=None,
+                    unit="",
+                    source="unknown",
+                    observed_at=None,
+                    status="unavailable",
+                    note=f"{parameter} currently unavailable from configured sources."
+                ))
 
         insights = self._build_insights(readings)
         summary = self._summarize(resolved_name, readings, insights)
 
         any_mocked = any(r.status == "mocked" for r in readings)
-        any_unavailable = any(r.status == "unavailable" for r in readings)
+        any_unavailable = any(r.status in ["unavailable", "error"] for r in readings)
         status = "partial" if (any_mocked or any_unavailable or errors) else "ok"
 
         return OceanAgentOutput(
@@ -104,33 +162,31 @@ class OceanAgent:
         )
         return 13.08, 80.27, agent_input.location_name or "unresolved location (defaulted)", errors
 
-    def _build_insights(self, readings: List[ChlorophyllReading]) -> List[str]:
+    def _build_insights(self, readings: List[OceanReading]) -> List[str]:
         """
-        Keep interpretation conservative. Chlorophyll alone is not enough to
-        declare a fishing zone healthy/productive/safe. The Coordinator should
-        correlate it with SST, weather, PFZ and other evidence.
+        Build reasoning around ocean conditions.
         """
         insights = []
         for reading in readings:
-            if reading.value is None:
-                insights.append("No usable chlorophyll observation was available for the requested point/time.")
-                continue
-            if reading.status == "mocked":
-                insights.append("Chlorophyll value is a mock fallback and must not be treated as a scientific observation.")
-            else:
-                insights.append(
-                    "Chlorophyll observation retrieved; correlate with sea-surface temperature, weather, "
-                    "and other marine evidence before making a fishing or ecosystem recommendation."
-                )
+            if reading.name == "chlorophyll":
+                if reading.value is None:
+                    insights.append("No usable chlorophyll observation was available for the requested point/time.")
+                elif reading.status == "mocked":
+                    insights.append("Chlorophyll value is a mock fallback and must not be treated as a scientific observation.")
+                else:
+                    insights.append(
+                        "Chlorophyll observation retrieved; correlate with sea-surface temperature, weather, "
+                        "and other marine evidence before making a fishing or ecosystem recommendation."
+                    )
         return insights
 
-    def _summarize(self, location_name: Optional[str], readings: List[ChlorophyllReading], insights: List[str]) -> str:
+    def _summarize(self, location_name: Optional[str], readings: List[OceanReading], insights: List[str]) -> str:
         loc = location_name or "the requested location"
         parts = []
         for r in readings:
             if r.value is not None:
-                parts.append(f"chlorophyll is {r.value} {r.unit}".strip())
-        body = "; ".join(parts) if parts else "no chlorophyll observation could be retrieved"
+                parts.append(f"{r.name.replace('_', ' ')} is {r.value} {r.unit}".strip())
+        body = "; ".join(parts) if parts else "no valid observations could be retrieved"
         summary = f"Ocean snapshot for {loc}: {body}."
         if insights:
             summary += " " + insights[0]
@@ -141,3 +197,4 @@ class OceanAgent:
             "agent": "ocean_agent",
             "result": output.to_dict(),
         }
+
